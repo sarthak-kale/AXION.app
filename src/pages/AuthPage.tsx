@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Mail, Lock, ArrowRight, Github } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Github, Eye, EyeOff } from 'lucide-react';
 import { Logo } from '../components/Logo';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -11,14 +11,50 @@ export const AuthPage: React.FC<{ type: 'login' | 'register'; onToggle: () => vo
   const { login } = useAuth();
   const { addToast } = useToasts();
   const [isLoading, setIsLoading] = useState(false);
-  const [formData, setFormData] = useState({ email: '', password: '', name: '' });
+const [formData, setFormData] = useState({ email: '', password: '', name: '' });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [shake, setShake] = useState(false);
+
+  const validate = () => {
+    const newErrors: Record<string, string> = {};
+
+if (type === 'register' && !formData.name.trim()) {
+      newErrors.name = 'Name is required';
+    }
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/^\\S+@\\S+\\.\\S+$/.test(formData.email)) {
+      newErrors.email = 'Email is invalid';
+    }
+    if (!formData.password) {
+      newErrors.password = 'Password is required';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Form submit triggered. Data:', formData);
+
+    if (!validate()) {
+      console.log('Validation failed');
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
+      return;
+    }
+
     setIsLoading(true);
+    setErrors({});
+    setShake(false);
 
     try {
       const endpoint = type === 'login' ? '/api/login' : '/api/register';
+      console.log('Posting to', endpoint);
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -26,15 +62,29 @@ export const AuthPage: React.FC<{ type: 'login' | 'register'; onToggle: () => vo
       });
 
       const data = await res.json();
+      console.log('API response:', data);
 
       if (res.ok) {
         login(data.token, data.user);
-        addToast(type === 'login' ? 'Welcome back!' : 'Account created successfully');
+        addToast(type === 'login' ? 'Welcome back!' : 'Account created successfully!');
       } else {
-        addToast(data.error || 'Authentication failed', 'error');
+        console.error('API error:', data.error);
+        // Handle specific errors
+        if (data.error?.includes('Email already exists') || data.error?.includes('UNIQUE')) {
+          setErrors({ email: 'Email already exists' });
+        } else if (data.error) {
+          setErrors({ email: data.error }); // Generic to email for simplicity
+        } else {
+          addToast(data.error || 'Authentication failed', 'error');
+        }
+        setShake(true);
+        setTimeout(() => setShake(false), 500);
       }
     } catch (error) {
-      addToast('Something went wrong', 'error');
+      console.error('Fetch error:', error);
+      addToast('Network error. Please try again.', 'error');
+      setShake(true);
+      setTimeout(() => setShake(false), 500);
     } finally {
       setIsLoading(false);
     }
@@ -82,35 +132,82 @@ export const AuthPage: React.FC<{ type: 'login' | 'register'; onToggle: () => vo
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {type === 'register' && (
-            <Input
-              label="Full Name"
-              placeholder="John Doe"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              required
-              className="rounded-2xl border-white/5 bg-white/5 focus:bg-white/10 transition-all"
-            />
+        <motion.form
+            onSubmit={handleSubmit}
+            className="space-y-6"
+            animate={shake ? { x: [0, -5, 5, -5, 0] } : {}}
+            transition={{ duration: 0.5 }}
+          >
+{type === 'register' && (
+            <motion.div
+              animate={shake ? { x: [0, -5, 5, -5, 0] } : {}}
+              transition={{ duration: 0.5 }}
+              className={shake ? 'shake' : ''}
+            >
+              <Input
+                label="Full Name"
+                placeholder="John Doe"
+                value={formData.name}
+                onChange={(e) => {
+                  setFormData({ ...formData, name: e.target.value });
+                  if (errors.name) setErrors({ ...errors, name: '' });
+                  console.log('Name changed:', e.target.value);
+                }}
+                error={errors.name}
+                required
+                className="rounded-2xl border-white/5 bg-white/5 focus:bg-white/10 focus:ring-white/20 transition-all pr-0"
+              />
+            </motion.div>
           )}
-          <Input
-            label="Email Address"
-            type="email"
-            placeholder="name@example.com"
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            required
-            className="rounded-2xl border-white/5 bg-white/5 focus:bg-white/10 transition-all"
-          />
-          <Input
-            label="Password"
-            type="password"
-            placeholder="••••••••"
-            value={formData.password}
-            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-            required
-            className="rounded-2xl border-white/5 bg-white/5 focus:bg-white/10 transition-all"
-          />
+<motion.div
+            animate={shake ? { x: [0, -5, 5, -5, 0] } : {}}
+            transition={{ duration: 0.5 }}
+            className={shake ? 'shake' : ''}
+          >
+            <Input
+              label="Email Address"
+              type="email"
+              placeholder="name@example.com"
+              value={formData.email}
+              onChange={(e) => {
+                setFormData({ ...formData, email: e.target.value });
+                if (errors.email) setErrors({ ...errors, email: '' });
+                console.log('Email changed:', e.target.value);
+              }}
+              error={errors.email}
+              required
+              className="rounded-2xl border-white/5 bg-white/5 focus:bg-white/10 focus:ring-white/20 transition-all"
+            />
+          </motion.div>
+          <motion.div
+            animate={shake ? { x: [0, -5, 5, -5, 0] } : {}}
+            transition={{ duration: 0.5 }}
+            className={shake ? 'shake' : ''}
+          >
+            <div className="relative">
+              <Input
+                label="Password"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={formData.password}
+                onChange={(e) => {
+                  setFormData({ ...formData, password: e.target.value });
+                  if (errors.password) setErrors({ ...errors, password: '' });
+                  console.log('Password length:', e.target.value.length);
+                }}
+                error={errors.password}
+                required
+                className="rounded-2xl border-white/5 bg-white/5 focus:bg-white/10 focus:ring-white/20 pr-12 transition-all"
+              />
+              <button
+                type="button"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white p-1 rounded-full hover:bg-white/5 transition-all"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+          </motion.div>
 
           {type === 'login' && (
             <div className="flex items-center justify-between">
@@ -122,11 +219,16 @@ export const AuthPage: React.FC<{ type: 'login' | 'register'; onToggle: () => vo
             </div>
           )}
 
-          <Button type="submit" className="w-full py-8 rounded-2xl text-lg font-bold shadow-xl shadow-blue-500/10" size="lg" isLoading={isLoading}>
-            {type === 'login' ? 'Sign In' : 'Create Account'}
-            <ArrowRight className="ml-3" size={20} />
-          </Button>
-        </form>
+            <motion.div
+              animate={shake ? { x: [0, -10, 10, -10, 0] } : {}}
+              transition={{ duration: 0.6 }}
+            >
+              <Button type="submit" className="w-full py-8 rounded-2xl text-lg font-bold shadow-xl shadow-blue-500/10" size="lg" isLoading={isLoading}>
+                {type === 'login' ? 'Sign In' : 'Create Account'}
+                <ArrowRight className="ml-3" size={20} />
+              </Button>
+            </motion.div>
+          </motion.form>
 
         <div className="mt-10">
           <div className="relative mb-10">
